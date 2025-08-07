@@ -5,7 +5,11 @@
 
 // The only singleton that needs to exist
 // Build before other objects to fix the Wire object
+#ifndef __AVR__
 ModulinoClass Modulino __attribute__ ((init_priority (101)));
+#else
+ModulinoClass Modulino;
+#endif
 
 ModulinoColor RED(255, 0, 0);
 ModulinoColor BLUE(0, 0, 255);

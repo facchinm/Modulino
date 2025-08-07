@@ -10,8 +10,10 @@
 #endif
 
 #include "Wire.h"
+#ifndef __AVR__
 #include <vl53l4cd_class.h>  // from stm32duino
 #include <vl53l4ed_class.h>  // from stm32duino
+#endif
 #include "Arduino_LSM6DSOX.h"
 #include <Arduino_LPS22HB.h>
 #include <Arduino_HS300x.h>
@@ -72,11 +74,11 @@ public:
   static HardwareI2C* getWire() {
     return Modulino._wire;
   }
-  bool read(uint8_t* buf, int howmany) {
+  bool read(uint8_t* buf, uint8_t howmany) {
     if (address >= 0x7F) {
       return false;
     }
-    Modulino._wire->requestFrom(address, howmany + 1);
+    Modulino._wire->requestFrom(address, (uint8_t)(howmany + 1));
     auto start = millis();
     while ((Modulino._wire->available() == 0) && (millis() - start < 100)) {
       delay(1);
@@ -93,7 +95,7 @@ public:
     }
     return true;
   }
-  bool write(uint8_t* buf, int howmany) {
+  bool write(uint8_t* buf, uint8_t howmany) {
     if (address >= 0x7F) {
       return false;
     }
@@ -214,7 +216,8 @@ public:
   ModulinoColor(uint8_t r, uint8_t g, uint8_t b)
     : r(r), g(g), b(b) {}
   operator uint32_t() {
-    return (b << 8 | g << 16 | r << 24);
+
+    return ((uint32_t)b << 8 | (uint32_t)g << 16 | (uint32_t)r << 24);
   }
 private:
   uint8_t r, g, b;
@@ -464,6 +467,8 @@ class ModulinoLight : public Module {
 
 };
 
+#ifndef __AVR__
+
 class _distance_api {
 public:
   _distance_api(VL53L4CD* sensor) : sensor(sensor) {
@@ -573,5 +578,7 @@ private:
   float internal = NAN;
   _distance_api* api = nullptr;
 };
+
+#endif
 
 #endif
