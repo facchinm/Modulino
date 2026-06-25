@@ -597,6 +597,57 @@ private:
   int initialized = 0;
 };
 
+class GXHT30Class {
+  public:
+    GXHT30Class(TwoWire &wire) : _wire(&wire) {}
+    bool begin() {
+      _wire->beginTransmission(0x45);
+      if (_wire->endTransmission() != 0) {
+        return false;
+      }
+      _wire->beginTransmission(0x45);
+      _wire->write(0x21);
+      _wire->write(0x30);
+      _wire->endTransmission();
+      delay(1000);
+      return true;
+    }
+    float readHumidity() {
+      if (millis() - ts > 2000 || ts == 0) {
+        auto ret = get();
+      }
+      uint16_t raw = (data[3] << 8) | data[4];
+      return (raw * 100.0) / 65535.0;
+    }
+    float readTemperature() {
+      if (millis() - ts > 2000 || ts == 0) {
+        auto ret = get();
+      }
+      uint16_t raw = (data[0] << 8) | data[1];
+      return (raw * 175.0) / 65535.0 - 45.0;
+    }
+private:
+    TwoWire* _wire;
+    uint8_t data[6];
+    uint32_t ts = 0;
+    int get() {
+      _wire->beginTransmission(0x45);
+      _wire->write(0xE0);
+      _wire->write(0x00);
+      auto ret = _wire->endTransmission();
+      if (ret != 0) {
+        return ret;
+      }
+      delay(50);
+      ret = _wire->requestFrom(0x45, 6);
+      for (int i = 0; i < 6; i++) {
+        data[i] = _wire->read();
+      }
+      ts = millis();
+      return ret;
+    }
+};
+
 class ModulinoThermo: public Module {
 public:
   ModulinoThermo(ModulinoHubPort* hubPort = nullptr)
@@ -605,10 +656,18 @@ public:
     if (hubPort != nullptr) {
       hubPort->select();
     }
-    if (_sensor == nullptr) {
-      _sensor = new HS300xClass(*((TwoWire*)getWire()));
+    getWire()->beginTransmission(0x45);
+    if (getWire()->endTransmission() != 0) {
+      if (_sensor_v1 == nullptr) {
+        _sensor_v1 = new HS300xClass(*((TwoWire*)getWire()));
+      }
+      initialized = _sensor_v1->begin();
+    } else {
+      if (_sensor_v2 == nullptr) {
+        _sensor_v2 = new GXHT30Class(*((TwoWire*)getWire()));
+      }
+      initialized = _sensor_v2->begin();
     }
-    initialized = _sensor->begin();
     __increaseI2CPriority();
     if (hubPort != nullptr) {
       hubPort->clear();
@@ -623,7 +682,12 @@ public:
       if (hubPort != nullptr) {
         hubPort->select();
       }
-      auto ret = _sensor->readHumidity();
+      float ret = 0;
+      if (_sensor_v2 != nullptr) {
+        ret = _sensor_v2->readHumidity();
+      } else if (_sensor_v1 != nullptr) {
+        ret = _sensor_v1->readHumidity();
+      }
       if (hubPort != nullptr) {
         hubPort->clear();
       }
@@ -636,7 +700,12 @@ public:
       if (hubPort != nullptr) {
         hubPort->select();
       }
-      auto ret = _sensor->readTemperature();
+      float ret = 0;
+      if (_sensor_v2 != nullptr) {
+        ret = _sensor_v2->readTemperature();
+      } else if (_sensor_v1 != nullptr) {
+        ret = _sensor_v1->readTemperature();
+      }
       if (hubPort != nullptr) {
         hubPort->clear();
       }
@@ -645,7 +714,8 @@ public:
     return 0;
   }
 private:
-  HS300xClass* _sensor = nullptr;
+  HS300xClass* _sensor_v1 = nullptr;
+  GXHT30Class* _sensor_v2 = nullptr;
   int initialized = 0;
 };
 
